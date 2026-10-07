@@ -19,8 +19,8 @@ UNFAVORABLE = ("bear", "bear-weak", "down")
 
 
 @st.cache_data(ttl=3600, show_spinner="Buscando dados...")
-def get(ticker, period):
-    return load(ticker, period)
+def get(ticker, period, token=None):
+    return load(ticker, period, token or None)
 
 
 @st.cache_data(ttl=900, show_spinner="Buscando candles de 1 hora...")
@@ -53,6 +53,12 @@ period = st.sidebar.selectbox("Histórico", ["2y", "3y", "5y", "10y"], index=2)
 order = st.sidebar.slider("Sensibilidade de topos/fundos", 3, 12, 5,
                           help="Candles de cada lado para confirmar um topo/fundo. "
                                "Menor = mais pivôs (curto prazo); maior = só pivôs relevantes.")
+
+st.sidebar.subheader("Fonte de dados")
+brapi_token = st.sidebar.text_input("Token da brapi (opcional)", type="password",
+                                    help="Histórico vem do Yahoo. Se o candle de hoje vier zerado ou ausente, o app o refaz "
+                                         "pela brapi.dev (plano gratuito, cotação com ~30 min de atraso). Crie o token grátis em "
+                                         "brapi.dev; sem token só funcionam alguns ativos de teste.")
 
 st.sidebar.subheader("Gráfico")
 log_scale = st.sidebar.checkbox("Escala logarítmica", True,
@@ -465,7 +471,7 @@ def render_fii(fa):
 # CARREGA O ATIVO
 # ============================================================================
 try:
-    data = get(ticker, period)
+    data = get(ticker, period, brapi_token)
 except Exception as e:  # noqa: BLE001
     st.error(str(e))
     st.divider()

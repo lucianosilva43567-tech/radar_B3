@@ -58,6 +58,38 @@ def _demo(ticker: str) -> dict:
     return {"df": df, "info": info, "divs": divs}
 
 
+def _today_from_brapi(ticker, token=None):
+    """Candle do dia pela brapi.dev (plano gratuito: cotação com ~30 min de atraso). Devolve (dia, [O,H,L,C,V]) ou None."""
+    try:
+        import requests
+
+        t = ticker.strip().upper().replace(".SA", "")
+        headers = {"Authorization": f"Bearer {token}"} if token else {}
+        r = requests.get(f"https://brapi.dev/api/quote/{t}", params={"range": "1d", "interval": "1d"},
+                         headers=headers, timeout=10)
+        r.raise_for_status()
+        res = r.json()["results"][0]
+        c = float(res["regularMarketPrice"])
+        o = float(res.get("regularMarketOpen") or c)
+        h = float(res.get("regularMarketDayHigh") or max(o, c))
+        l = float(res.get("regularMarketDayLow") or min(o, c))
+        v = float(res.get("regularMarketVolume") or 0)
+        if min(o, h, l, c) <= 0 or h < l:
+            return None
+        h, l = max(h, o, c), min(l, o, c)
+        ts = res.get("regularMarketTime")
+        if isinstance(ts, (int, float)):
+            when = pd.Timestamp(ts, unit="s", tz="UTC")
+        else:
+            when = pd.Timestamp(ts)
+            if when.tzinfo is None:
+                when = when.tz_localize("UTC")
+        day = when.tz_convert("America/Sao_Paulo").tz_localize(None).normalize()
+        return day, [o, h, l, c, v]
+    except Exception:
+        return None
+
+
 def _today_from_intraday(tk):
     """Candle do pregão mais recente montado com candles de 5/15 minutos (Yahoo)."""
     for interval in ("5m", "15m"):
@@ -78,8 +110,8 @@ def _today_from_intraday(tk):
     return None
 
 
-def _repair_today(tk, df):
-    """O Yahoo às vezes devolve o candle de hoje zerado, vazio ou ausente: reconstrói pelos candles intradiários."""
+def _repair_today(tk, df, ticker=None, token=None):
+    """O Yahoo às vezes devolve o candle de hoje zerado, vazio ou ausente: refaz pela brapi (ou pelos candles intradiários)."""
     if df.empty:
         return df
     cols = ["Open", "High", "Low", "Close"]
@@ -88,7 +120,8 @@ def _repair_today(tk, df):
     last_day = df.index[-1].normalize()
     if not bad_last and last_day >= pd.Timestamp.today().normalize():
         return df  # candle de hoje já veio bom
-    got = _today_from_intraday(tk)
+    got = _today_from_brapi(ticker, token) if ticker else None
+    got = got or _today_from_intraday(tk)  # reserva: candles de 5/15 min do Yahoo
     if got is None:
         return df
     day, row = got
@@ -101,7 +134,7 @@ def _repair_today(tk, df):
     return df
 
 
-def load(ticker: str, period: str = "5y") -> dict:
+def load(ticker: str, period: str = "5y", brapi_token: str = None) -> dict:
     if os.environ.get("DEMO") == "1":
         return _demo(ticker)
 
@@ -112,7 +145,8 @@ def load(ticker: str, period: str = "5y") -> dict:
     if df is None or df.empty:
         raise ValueError(f"Nenhum dado encontrado para '{ticker}'. Confira o código (ex.: PETR4, VALE3, HGLG11).")
     df.index = _naive(df.index)
-    df = _repair_today(tk, df[["Open", "High", "Low", "Close", "Volume"]]).dropna()
+    df = _repair_today(tk, df[["Open", "High", "Low", "Close", "Volume"]], ticker,
+                      brapi_token or os.environ.get("BRAPI_TOKEN")).dropna()
 
     try:
         info = tk.get_info() or {}
