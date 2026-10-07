@@ -58,6 +58,49 @@ def _demo(ticker: str) -> dict:
     return {"df": df, "info": info, "divs": divs}
 
 
+def _today_from_intraday(tk):
+    """Candle do pregão mais recente montado com candles de 5/15 minutos (Yahoo)."""
+    for interval in ("5m", "15m"):
+        try:
+            h = tk.history(period="5d", interval=interval, auto_adjust=True)
+        except Exception:
+            continue
+        if h is None or h.empty:
+            continue
+        h.index = _naive(h.index)
+        h = h[(h[["Open", "High", "Low", "Close"]] > 0).all(axis=1)]  # descarta zeros e vazios
+        if h.empty:
+            continue
+        day = h.index[-1].normalize()
+        h = h[h.index.normalize() == day]
+        return day, [float(h.Open.iloc[0]), float(h.High.max()), float(h.Low.min()), float(h.Close.iloc[-1]),
+                     float(h.Volume.sum())]
+    return None
+
+
+def _repair_today(tk, df):
+    """O Yahoo às vezes devolve o candle de hoje zerado, vazio ou ausente: reconstrói pelos candles intradiários."""
+    if df.empty:
+        return df
+    cols = ["Open", "High", "Low", "Close"]
+    last = df.iloc[-1]
+    bad_last = bool(last[cols].isna().any() or (last[cols] <= 0).any())
+    last_day = df.index[-1].normalize()
+    if not bad_last and last_day >= pd.Timestamp.today().normalize():
+        return df  # candle de hoje já veio bom
+    got = _today_from_intraday(tk)
+    if got is None:
+        return df
+    day, row = got
+    if day > last_day:
+        df = df.copy()
+        df.loc[day] = row  # o Yahoo ainda não trouxe o candle desse dia
+    elif day == last_day and bad_last:
+        df = df.copy()
+        df.loc[df.index[-1]] = row  # candle do dia veio zerado
+    return df
+
+
 def load(ticker: str, period: str = "5y") -> dict:
     if os.environ.get("DEMO") == "1":
         return _demo(ticker)
@@ -69,7 +112,7 @@ def load(ticker: str, period: str = "5y") -> dict:
     if df is None or df.empty:
         raise ValueError(f"Nenhum dado encontrado para '{ticker}'. Confira o código (ex.: PETR4, VALE3, HGLG11).")
     df.index = _naive(df.index)
-    df = df[["Open", "High", "Low", "Close", "Volume"]].dropna()
+    df = _repair_today(tk, df[["Open", "High", "Low", "Close", "Volume"]]).dropna()
 
     try:
         info = tk.get_info() or {}
