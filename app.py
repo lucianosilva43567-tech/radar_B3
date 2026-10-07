@@ -54,6 +54,13 @@ order = st.sidebar.slider("Sensibilidade de topos/fundos", 3, 12, 5,
                           help="Candles de cada lado para confirmar um topo/fundo. "
                                "Menor = mais pivôs (curto prazo); maior = só pivôs relevantes.")
 
+st.sidebar.subheader("Gráfico")
+log_scale = st.sidebar.checkbox("Escala logarítmica", True,
+                                help="Variações percentuais iguais ocupam a mesma altura. No gráfico: arraste para dar "
+                                     "zoom no tempo e no preço, role o mouse para ampliar e dê duplo clique para restaurar.")
+show_ma = st.sidebar.checkbox("Médias móveis (20/50/200)", False)
+show_marks = st.sidebar.checkbox("Marcar topos e fundos", False)
+
 st.sidebar.subheader("Pivôs e Fibonacci")
 piv_period = st.sidebar.selectbox("Pivôs calculados sobre", list(PIVOT_FREQ), index=0,
                                   help="Semanal serve para swing trade; mensal, para posições mais longas; "
@@ -61,7 +68,7 @@ piv_period = st.sidebar.selectbox("Pivôs calculados sobre", list(PIVOT_FREQ), i
 piv_variant = st.sidebar.selectbox("Fórmula dos pivôs", ["Clássico", "Fibonacci"],
                                    help="Clássico: P, R1-R3 e S1-S3 pelo high/low/close do período anterior. "
                                         "Fibonacci: níveis a 38,2%, 61,8% e 100% da amplitude.")
-show_piv = st.sidebar.checkbox("Mostrar pivôs no gráfico", True)
+show_piv = st.sidebar.checkbox("Mostrar pivôs no gráfico", False)
 piv_detail = st.sidebar.selectbox("Níveis de pivô no gráfico", ["P, R1-R2, S1-S2", "Todos (com R3 e S3)"],
                                   help="O primeiro deixa o gráfico mais limpo; R3 e S3 ficam longe do preço.")
 show_fib = st.sidebar.checkbox("Mostrar alvos de projeção Fibonacci (61,8%, 100%, 161,8%)", True)
@@ -87,33 +94,42 @@ cdi = st.sidebar.slider("Renda fixa de referência (CDI, a.a.)", 0.05, 0.20, 0.1
 # TRECHOS REUTILIZÁVEIS
 # ============================================================================
 PIV_COLOR = {"R": "#d6453d", "S": "#1a9e6e", "P": "#f2a900"}
+# zoom livre: arraste para ampliar tempo e preço, role o mouse para ampliar, duplo clique restaura
+CHART_CFG = {"scrollZoom": True, "displaylogo": False, "modeBarButtonsToRemove": ["select2d", "lasso2d"]}
 
 
 def make_chart(tec, trade=None):
-    """Candles + médias + topos/fundos + pivôs clássicos + Fibonacci (retração e projeção) + entrada/stop/alvo."""
+    """Gráfico limpo: candles, linha azul (entrada), vermelha (stop) e alvos de Fibonacci (61,8%, 100%, 161,8%).
+
+    Médias, topos/fundos, pivôs e retrações são opcionais (barra lateral) e ficam desligados por padrão.
+    """
     d = tec["df"]
     hourly = len(d) > 2 and d.index.to_series().diff().median() < pd.Timedelta(hours=20)
     x_end = d.index[-1] + pd.Timedelta(days=2 if hourly else 12)
     fig = go.Figure()
     fig.add_candlestick(x=d.index, open=d.Open, high=d.High, low=d.Low, close=d.Close, name="Preço",
                         increasing_line_color="#1a9e6e", decreasing_line_color="#d6453d")
-    for col, color in (("SMA20", "#f2a900"), ("SMA50", "#3b82f6"), ("SMA200", "#8b5cf6")):
-        fig.add_scatter(x=d.index, y=d[col], name=col.replace("SMA", "Média "), line=dict(color=color, width=1.4))
-    if tec["highs"]:
-        fig.add_scatter(x=[d.index[i] for i, _ in tec["highs"]], y=[p for _, p in tec["highs"]], mode="markers",
-                        name="Topos", marker=dict(symbol="triangle-down", size=9, color="#d6453d"))
-    if tec["lows"]:
-        fig.add_scatter(x=[d.index[i] for i, _ in tec["lows"]], y=[p for _, p in tec["lows"]], mode="markers",
-                        name="Fundos", marker=dict(symbol="triangle-up", size=9, color="#1a9e6e"))
+    if show_ma:
+        for col, color in (("SMA20", "#f2a900"), ("SMA50", "#3b82f6"), ("SMA200", "#8b5cf6")):
+            fig.add_scatter(x=d.index, y=d[col], name=col.replace("SMA", "Média "), hoverinfo="skip",
+                            line=dict(color=color, width=1.2))
+    if show_marks:
+        if tec["highs"]:
+            fig.add_scatter(x=[d.index[i] for i, _ in tec["highs"]], y=[p for _, p in tec["highs"]], mode="markers",
+                            name="Topos", hoverinfo="skip", marker=dict(symbol="triangle-down", size=8, color="#d6453d"))
+        if tec["lows"]:
+            fig.add_scatter(x=[d.index[i] for i, _ in tec["lows"]], y=[p for _, p in tec["lows"]], mode="markers",
+                            name="Fundos", hoverinfo="skip", marker=dict(symbol="triangle-up", size=8, color="#1a9e6e"))
 
     drawn = []
 
-    def hline(y, color, label, x0=None, dash="dot", width=1.1):
+    def hline(y, color, label=None, x0=None, dash="dot", width=1.1):
         drawn.append(y)
         fig.add_shape(type="line", x0=x0 if x0 is not None else d.index[0], x1=x_end, y0=y, y1=y,
                       line=dict(color=color, width=width, dash=dash))
-        fig.add_annotation(x=x_end, y=y, text=label, showarrow=False, xanchor="right", yanchor="bottom",
-                           font=dict(size=10, color=color))
+        if label:
+            fig.add_annotation(x=x_end, y=y, text=label, showarrow=False, xanchor="right", yanchor="bottom",
+                               font=dict(size=10, color=color))
 
     piv = tec.get("piv")
     if show_piv and piv:
@@ -124,44 +140,46 @@ def make_chart(tec, trade=None):
                 hline(v, PIV_COLOR[k[0]], f"{k} {num(v)}", x0=piv["start"],
                       dash="solid" if k == "P" else "dash", width=1.4 if k == "P" else 1.0)
 
+    # alvos de projeção Fibonacci (sem pontos 1-2-3 e sem linha de confirmação)
     fib = tec.get("fib")
-    if show_fib and fib:
-        fig.add_scatter(x=[d.index[i] for i, _ in fib["pts"]], y=[p for _, p in fib["pts"]], mode="lines+markers+text",
-                        text=[f"Ponto {k}" for k in range(1, len(fib["pts"]) + 1)], textposition="top center",
-                        textfont=dict(size=10, color="#9ca3af"),
-                        name="Pontos 1-2-3 (Fibonacci)", line=dict(color="#6b7280", width=1.2, dash="dot"),
-                        marker=dict(size=5, color="#6b7280"))
-        if len(fib["pts"]) == 3:  # confirmação do pivô: rompimento do Ponto 2
-            i2, p2 = fib["pts"][1]
-            hline(p2, "#9ca3af", f"Confirmação do pivô · {num(p2)}", x0=d.index[i2], width=0.9)
+    n_targets = 0
+    if show_fib and fib and fib["proj"]:
         x0 = d.index[fib["pts"][-1][0]]
         pct_ = lambda r: f"{r * 100:g}".replace(".", ",") + "%"  # noqa: E731
         for r, p in fib["proj"]:
-            hline(p, "#a855f7", f"Alvo {pct_(r)} · {num(p)}", x0=x0, width=1.4)
+            hline(p, "#a855f7", f"{pct_(r)} · {num(p)}", x0=x0, width=1.4)
+            n_targets += 1
         if show_retr:
             for r, p in fib["retr"]:
                 hline(p, "#0ea5e9", f"Ret. {pct_(r)} · {num(p)}", x0=x0, width=0.8)
 
-    if trade:
-        hline(trade["Entrada"], "#3b82f6", f"Entrada {num(trade['Entrada'])}")
-        hline(trade["Stop"], "#d6453d", f"Stop {num(trade['Stop'])}")
-        hline(trade["Alvo"], "#1a9e6e", f"Alvo {num(trade['Alvo'])}")
-    else:
-        for s in tec["setups"]:
-            if s["Entrada"]:
-                hline(s["Entrada"], "#3b82f6", f"Entrada · {s['Setup']}")
-                hline(s["Stop"], "#d6453d", "Stop")
-                hline(s["Alvo"], "#1a9e6e", "Alvo")
-                break
+    # entrada (azul) e stop (vermelho), sem texto; a entrada por rompimento não é desenhada
+    plan = trade
+    if not plan:
+        pick = next((s for s in tec["setups"] if s["Entrada"] and not s["Setup"].startswith("Rompimento")), None)
+        plan = {"Entrada": pick["Entrada"], "Stop": pick["Stop"], "Alvo": pick["Alvo"]} if pick else None
+    if plan:
+        hline(plan["Entrada"], "#3b82f6", width=1.4)
+        hline(plan["Stop"], "#d6453d", width=1.4)
+        if not n_targets and plan.get("Alvo"):
+            hline(plan["Alvo"], "#1a9e6e", f"Alvo {num(plan['Alvo'])}")
+
+    ytitle = "Preço (R$)" + (" · escala log" if log_scale else "")
     fig.update_layout(height=640, xaxis_rangeslider_visible=False, margin=dict(l=10, r=10, t=10, b=10),
-                      legend=dict(orientation="h", y=1.02),
-                      xaxis=dict(rangebreaks=[dict(bounds=["sat", "mon"])]
-                                 + ([dict(bounds=[17, 10], pattern="hour")] if hourly else [])))
+                      showlegend=False, dragmode="zoom",
+                      xaxis=dict(title_text="Tempo", fixedrange=False,
+                                 rangebreaks=[dict(bounds=["sat", "mon"])]
+                                 + ([dict(bounds=[17, 10], pattern="hour")] if hourly else [])),
+                      yaxis=dict(title_text=ytitle, type="log" if log_scale else "linear", fixedrange=False,
+                                 tickformat=",.2f", exponentformat="none", side="right"))
     fig.update_xaxes(range=[d.index[-min(len(d), 320)], x_end])
     vis = d.iloc[-min(len(d), 320):]
     lo_, hi_ = min([float(vis.Low.min())] + drawn), max([float(vis.High.max())] + drawn)
-    pad = (hi_ - lo_) * 0.04
-    fig.update_yaxes(range=[lo_ - pad, hi_ + pad])
+    if log_scale and lo_ > 0:
+        fig.update_yaxes(range=[float(np.log10(lo_ * 0.97)), float(np.log10(hi_ * 1.03))])
+    else:
+        pad = (hi_ - lo_) * 0.04
+        fig.update_yaxes(range=[lo_ - pad, hi_ + pad])
     return fig
 
 
@@ -294,7 +312,7 @@ def render_swing():
     pick = st.selectbox("Ativo", list(pick_pool.sort_values("Score", ascending=False)["Ativo"]))
     row = table[table["Ativo"] == pick].iloc[0]
     tec_p = technical(res["data"][pick], hz["order"], hz["freq"])
-    st.plotly_chart(make_chart(tec_p, {"Entrada": row["Entrada (ref.)"], "Stop": row["Stop"], "Alvo": row["Alvo"]}))
+    st.plotly_chart(make_chart(tec_p, {"Entrada": row["Entrada (ref.)"], "Stop": row["Stop"], "Alvo": row["Alvo"]}), config=CHART_CFG)
     st.markdown(f"**{pick} · {row['Direção']}** · score {row['Score']}/10 · stop em {row['Stop em']} · "
                 f"alvo em {row['Alvo em']} · R/R {num(row['R/R'], 1)}")
     for m in row["Motivos"].split("; "):
@@ -541,7 +559,7 @@ fig = make_chart(tec)
 
 # ---------------- pontos de entrada ----------------
 with tab_res:
-    st.plotly_chart(fig)
+    st.plotly_chart(fig, config=CHART_CFG)
     st.subheader("Possíveis pontos de entrada")
     st.dataframe(pd.DataFrame(tec["setups"])[["Setup", "Entrada", "Stop", "Alvo", "R/R", "Obs"]], hide_index=True)
     st.caption("Sugestões mecânicas e educacionais, baseadas em topos/fundos, médias e ATR. "
