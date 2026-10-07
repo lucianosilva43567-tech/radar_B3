@@ -357,8 +357,28 @@ def confluences(tec, variant="classic"):
     return out
 
 
-def technical(df, order=5, pivot_freq="W-FRI"):
+def _clean_ohlc(df):
+    """Corrige candles ruins do Yahoo (mínima/máxima zeradas ou vazias) antes de qualquer conta."""
     d = df.copy()
+    d = d[d.Close > 0]
+    d["Open"] = d.Open.where(d.Open > 0, d.Close)
+    lo, hi = d[["Open", "Close"]].min(axis=1), d[["Open", "Close"]].max(axis=1)
+    d["Low"] = d.Low.where(d.Low > 0, lo)
+    d["High"] = d.High.where(d.High > 0, hi)
+    return d
+
+
+def _vs(a, b):
+    """a / b - 1, ou None se b for zero/vazio (evita ZeroDivisionError)."""
+    try:
+        b = float(b)
+    except (TypeError, ValueError):
+        return None
+    return (float(a) / b - 1) if np.isfinite(b) and b > 0 else None
+
+
+def technical(df, order=5, pivot_freq="W-FRI"):
+    d = _clean_ohlc(df)
     d["SMA20"], d["SMA50"], d["SMA200"] = sma(d.Close, 20), sma(d.Close, 50), sma(d.Close, 200)
     d["RSI"], d["ATR"] = rsi(d.Close), atr(d)
     close = d.Close
@@ -442,10 +462,10 @@ def technical(df, order=5, pivot_freq="W-FRI"):
     ctx = {
         "Preço": last, "Estrutura de topos/fundos": structure,
         "Máx. 52 sem.": hi52, "Mín. 52 sem.": lo52,
-        "Distância da máxima": last / hi52 - 1, "Distância da mínima": last / lo52 - 1,
-        "vs SMA20": last / d.SMA20.iloc[-1] - 1 if not np.isnan(d.SMA20.iloc[-1]) else None,
-        "vs SMA50": last / s50 - 1 if not np.isnan(s50) else None,
-        "vs SMA200": last / s200 - 1 if not np.isnan(s200) else None,
+        "Distância da máxima": _vs(last, hi52), "Distância da mínima": _vs(last, lo52),
+        "vs SMA20": _vs(last, d.SMA20.iloc[-1]),
+        "vs SMA50": _vs(last, s50),
+        "vs SMA200": _vs(last, s200),
         "IFR(14)": float(d.RSI.iloc[-1]), "ATR(14)": float(d.ATR.iloc[-1]),
         "acima200": above200,
     }
