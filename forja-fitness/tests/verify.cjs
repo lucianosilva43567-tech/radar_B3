@@ -38,12 +38,25 @@ if(!rejected)throw Error('Macros inválidos aceitos');
 state=blank();state.profile.name='<img src=x onerror=alert(1)>';
 if(home().includes('<img src=x')) throw Error('Texto de perfil não escapado');
 validateBackup(blank());
+state=blank();state.profile.trainingPreferences.injuries='CUIDADO_PUNHO';state.profile.trainingPreferences.priority='PRIORIDADE_COSTAS';state.profile.dietPreferences.avoid='EVITAR_AMENDOIM';state.profile.dietPreferences.style='VITAMINAS_LIQUIDAS';
+if(planPrompt('workout').includes('EVITAR_AMENDOIM')||planPrompt('workout').includes('VITAMINAS_LIQUIDAS'))throw Error('Dieta misturada ao treino');
+if(planPrompt('menu').includes('CUIDADO_PUNHO')||planPrompt('menu').includes('PRIORIDADE_COSTAS'))throw Error('Treino misturado à dieta');
+if(!planPrompt('workout').includes('CUIDADO_PUNHO')||!planPrompt('menu').includes('EVITAR_AMENDOIM'))throw Error('Preferências não enviadas ao gerador');
+let restored=normalize(JSON.parse(JSON.stringify(state)));
+if(restored.profile.dietPreferences.avoid!=='EVITAR_AMENDOIM'||restored.profile.trainingPreferences.injuries!=='CUIDADO_PUNHO')throw Error('Preferências não preservadas');
+let legacy=normalize({profile:{name:'Teste',days:5},history:[]});
+if(legacy.profile.trainingPreferences.days!==5||!legacy.profile.dietPreferences)throw Error('Perfil anterior não migrado');
+
 if(!formatProse('## Título\\n\\n- Um item\\n- Outro item').includes('<ul>')) throw Error('Lista editorial ausente');
 if(formatProse('<img src=x onerror=alert(1)>').includes('<img')) throw Error('Resposta sem escape');
 if(!authError(new Error('Invalid login credentials')).includes('Diário de trader')) throw Error('Orientação de login ausente');
 
 `);
 assert(html.includes('font-variant-numeric:tabular-nums'));
+assert(!html.includes('AbortSignal.timeout(30000)'));
+assert(html.includes('AbortSignal.timeout(60000)'));
+assert(html.includes('maxOutputTokens:4096'));
+assert(fs.readFileSync(path.join(root,'supabase/functions/forja-ia/index.ts'),'utf8').includes('maxOutputTokens: 4096'));
 assert(fs.readFileSync(path.join(root,'config.js'),'utf8').includes('gemini-3.8-flash'));
 assert(!html.includes('gemini-2.5-flash'));
 assert(html.includes('overscroll-behavior-x: none'));
@@ -53,3 +66,5 @@ assert(fs.readFileSync(path.join(root,'supabase/functions/forja-ia/index.ts'),'u
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
 for (const icon of manifest.icons) assert(fs.existsSync(path.join(root,icon.src)));
 console.log('OK: JavaScript, TMB/GET, macros, volume, PR, sessão anterior, pace, validação de planos/backup, escape de texto e ícones.');
+
+vm.runInContext(`(async()=>{let release;const gate=new Promise(resolve=>release=resolve);let calls=0;const trigger={disabled:false,textContent:'Gerar treino',isConnected:true,setAttribute(){},removeAttribute(){}};const first=withBusy(async()=>{calls++;await gate},trigger,'Gerando...');if(!busy||!trigger.disabled||trigger.textContent!=='Gerando...')throw Error('Estado de geração incorreto');let duplicateBlocked=false;try{await withBusy(async()=>{calls++})}catch{duplicateBlocked=true}if(!duplicateBlocked||calls!==1)throw Error('Chamada duplicada permitida');release();await first;if(busy||trigger.disabled||trigger.textContent!=='Gerar treino')throw Error('Botão não restaurado');})()`,sandbox).then(()=>console.log('OK: preferências separadas/persistidas e bloqueio de chamadas duplicadas.')).catch(e=>{console.error(e);process.exitCode=1});
