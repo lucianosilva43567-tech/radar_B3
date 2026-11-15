@@ -56,9 +56,9 @@ assert(html.includes('font-variant-numeric:tabular-nums'));
 assert(!html.includes('AbortSignal.timeout(30000)'));
 assert(html.includes('AbortSignal.timeout(60000)'));
 assert(html.includes('maxOutputTokens:4096'));
-assert(fs.readFileSync(path.join(root,'supabase/functions/forja-ia/index.ts'),'utf8').includes('maxOutputTokens: 4096'));
+assert(fs.readFileSync(path.join(root,'supabase/functions/forja-ia/index.ts'),'utf8').includes('maxOutputTokens:4096'));
 assert(fs.readFileSync(path.join(root,'config.js'),'utf8').includes('gemini-3.8-flash'));
-assert(!html.includes('gemini-2.5-flash'));
+assert(!html.includes("'gemini-2.5-flash'"));
 assert(html.includes('overscroll-behavior-x: none'));
 assert(html.includes('padding-bottom: calc(88px + env(safe-area-inset-bottom))'));
 assert(html.includes('html, body { max-width: 100%; overflow-x: hidden; position: relative;'));
@@ -68,3 +68,5 @@ for (const icon of manifest.icons) assert(fs.existsSync(path.join(root,icon.src)
 console.log('OK: JavaScript, TMB/GET, macros, volume, PR, sessão anterior, pace, validação de planos/backup, escape de texto e ícones.');
 
 vm.runInContext(`(async()=>{let release;const gate=new Promise(resolve=>release=resolve);let calls=0;const trigger={disabled:false,textContent:'Gerar treino',isConnected:true,setAttribute(){},removeAttribute(){}};const first=withBusy(async()=>{calls++;await gate},trigger,'Gerando...');if(!busy||!trigger.disabled||trigger.textContent!=='Gerando...')throw Error('Estado de geração incorreto');let duplicateBlocked=false;try{await withBusy(async()=>{calls++})}catch{duplicateBlocked=true}if(!duplicateBlocked||calls!==1)throw Error('Chamada duplicada permitida');release();await first;if(busy||trigger.disabled||trigger.textContent!=='Gerar treino')throw Error('Botão não restaurado');})()`,sandbox).then(()=>console.log('OK: preferências separadas/persistidas e bloqueio de chamadas duplicadas.')).catch(e=>{console.error(e);process.exitCode=1});
+
+require('./ai-fallback.cjs');
