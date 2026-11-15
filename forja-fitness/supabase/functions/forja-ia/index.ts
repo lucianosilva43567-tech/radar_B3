@@ -31,7 +31,7 @@ Deno.serve(async (req) => {
   // 3. Gemini
   const key = Deno.env.get("GEMINI_API_KEY");
   if (!key) return json({ error: "Segredo GEMINI_API_KEY não configurado no Supabase" }, 500);
-  const model = Deno.env.get("FORJA_GEMINI_MODEL") ?? "gemini-2.5-flash";
+  const model = Deno.env.get("GEMINI_MODEL") ?? "gemini-3.8-flash";
   const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`, {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
