@@ -38,6 +38,10 @@ if(!rejected)throw Error('Macros inválidos aceitos');
 state=blank();state.profile.name='<img src=x onerror=alert(1)>';
 if(home().includes('<img src=x')) throw Error('Texto de perfil não escapado');
 validateBackup(blank());
+if(!formatProse('## Título\\n\\n- Um item\\n- Outro item').includes('<ul>')) throw Error('Lista editorial ausente');
+if(formatProse('<img src=x onerror=alert(1)>').includes('<img')) throw Error('Resposta sem escape');
+if(!authError(new Error('Invalid login credentials')).includes('Diário de trader')) throw Error('Orientação de login ausente');
+
 `);
 assert(html.includes('font-variant-numeric:tabular-nums'));
 assert(!fs.readFileSync(path.join(root,'config.js'),'utf8').includes('gemini-3.8-flash'));
