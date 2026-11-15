@@ -36,13 +36,14 @@ Deno.serve(async (req) => {
     method: "POST",
     headers: { "Content-Type": "application/json", "x-goog-api-key": key },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: body.system ?? "" }] },
+      systemInstruction: { parts: [{ text: (body.system ?? "") + (body.json ? "\nRetorne apenas JSON conciso e direto, sem markdown, comentários ou campos extras. Evite explicações longas. Use descrições curtas para concluir a resposta rapidamente dentro de 4096 tokens." : "\nSeja conciso e direto.") }] },
       contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: String(m.content) }] })),
-      generationConfig: { temperature: 0.7, maxOutputTokens: 16384, ...(body.json ? { responseMimeType: "application/json" } : {}) },
+      generationConfig: { temperature: 0.7, maxOutputTokens: 4096, ...(body.json ? { responseMimeType: "application/json" } : {}) },
     }),
   });
   const d = await r.json().catch(() => ({}));
   if (!r.ok) return json({ error: d?.error?.message ?? `Gemini respondeu ${r.status}` }, 502);
+  if (d?.candidates?.[0]?.finishReason === "MAX_TOKENS") return json({ error: "A resposta ficou incompleta. Tente gerar novamente um plano mais conciso." }, 502);
   const text = (d?.candidates?.[0]?.content?.parts ?? []).map((p: { text?: string }) => p.text ?? "").join("");
   if (!text) return json({ error: "O Gemini não devolveu texto (pode ter sido bloqueado pelo filtro de segurança)" }, 502);
   return json({ text });
