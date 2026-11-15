@@ -44,8 +44,12 @@ if(!authError(new Error('Invalid login credentials')).includes('Diário de trade
 
 `);
 assert(html.includes('font-variant-numeric:tabular-nums'));
-assert(!fs.readFileSync(path.join(root,'config.js'),'utf8').includes('gemini-3.8-flash'));
-assert(fs.readFileSync(path.join(root,'supabase/functions/forja-ia/index.ts'),'utf8').includes('gemini-2.5-flash'));
+assert(fs.readFileSync(path.join(root,'config.js'),'utf8').includes('gemini-3.8-flash'));
+assert(!html.includes('gemini-2.5-flash'));
+assert(html.includes('overscroll-behavior-x: none'));
+assert(html.includes('padding-bottom: calc(88px + env(safe-area-inset-bottom))'));
+assert(html.includes('html, body { max-width: 100%; overflow-x: hidden; position: relative;'));
+assert(fs.readFileSync(path.join(root,'supabase/functions/forja-ia/index.ts'),'utf8').includes('gemini-3.8-flash'));
 const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
 for (const icon of manifest.icons) assert(fs.existsSync(path.join(root,icon.src)));
 console.log('OK: JavaScript, TMB/GET, macros, volume, PR, sessão anterior, pace, validação de planos/backup, escape de texto e ícones.');
