@@ -1,0 +1,4 @@
+project_id = "forja-fitness"
+
+[functions.forja-ia]
+verify_jwt = true
