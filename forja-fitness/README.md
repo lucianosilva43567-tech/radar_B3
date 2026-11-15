@@ -2,13 +2,17 @@
 
 PWA mobile-first, em HTML/CSS/JS vanilla, com quatro abas: Hoje, Treino, Dieta e Progresso. Sem instalação de dependências ou build. Interface e lógica no index.html; integração Supabase por Auth, PostgREST e Edge Function.
 
-## Estado desta entrega
+## Estado atual
 
-- index.html completo, ícones incluídos e workflow do GitHub Pages preparado.
-- config.js e forja-ia/index.ts usam gemini-2.5-flash; nenhuma outra alteração nesses dois arquivos.
-- manifest.json, sw.js e supabase/forja.sql preservados byte a byte do ZIP recebido.
-- URL e chave pública Supabase ainda estão vazias, como no arquivo original.
-- Nenhum deploy remoto foi realizado: faltam a identificação/acesso ao repositório de destino, o projeto Supabase e o segredo Gemini.
+- Tema editorial claro: papel #F9F8F6, areia #F0EEEA, texto carvão #1C1C1E e terracota #C85A32.
+- Consultor sem balões, com títulos/listas formatados e compositor arredondado. Anexos TXT, MD e CSV até 24 KB.
+- Conectado ao projeto Supabase Diário de trader. Use o mesmo e-mail e senha da conta desse projeto. Dados do Forja permanecem separados na tabela forja_data, com RLS por usuário.
+- Tabela criada com as três colunas originais, quatro políticas de propriedade e permissões para usuários autenticados.
+- Função forja-ia publicada com verificação JWT. O segredo GEMINI_API_KEY precisa existir no projeto para gerar respostas; o aplicativo mantém a opção de chave local por sessão.
+- Retorno de confirmação/recuperação autorizado para https://lucianosilva43567-tech.github.io/radar_B3/forja-fitness/ . A URL principal do Diário foi preservada.
+- Login, cadastro, confirmação e recuperação disponíveis em Perfil / Conta. Confirmação de e-mail continua ativa.
+- manifest.json e sw.js preservados do pacote original.
+- Publicação: repositório radar_B3, pasta forja-fitness, workflow .github/workflows/forja-pages.yml.
 
 ## 1. Configurar Supabase
 
